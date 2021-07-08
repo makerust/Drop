@@ -18,7 +18,7 @@ bool pmFlag;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 //Time Set
-#define BEGIN_HOUR 08
+#define BEGIN_HOUR 11
 #define BEGIN_MINUTE 30
 int lastRunDate = 0;
 
@@ -62,6 +62,11 @@ void emBegin(){ //This is meant to be called first
 }
 
 void emEnd(){
+  digitalWrite(MOTOR, MOTOR_OFF);
+  digitalWrite(VALVE_1, VALVE_OFF);
+  digitalWrite(VALVE_2, VALVE_OFF);
+  digitalWrite(VALVE_3, VALVE_OFF);
+  digitalWrite(VALVE_4, VALVE_OFF);
   digitalWrite(VALVE_MAIN, VALVE_OFF);
   digitalWrite(ARM_EM, ARM_OFF);
 }
@@ -75,6 +80,7 @@ void emPumpArea(int area, int seconds){
     digitalWrite(area, VALVE_ON);
     digitalWrite(MOTOR, MOTOR_ON);
     currenttime=millis();
+    //If you decide to allow this to update time it goes here
     
     #ifdef DEBUG
     #ifdef VALVE_DEBUG
@@ -149,6 +155,7 @@ void displayCurrentTimePlusSprinkler(){
 
 
 void setup() {
+   emEnd();
   // put your setup code here, to run once:
   Serial.begin(9600);
 
@@ -175,6 +182,7 @@ void loop() {
 
  if(millis()%100==1){ 
   displayCurrentTime();
+  
   if(clock.getHour(h12Flag, pmFlag) == BEGIN_HOUR){
     if(clock.getMinute() == BEGIN_MINUTE){
       if(lastRunDate!=clock.getDate()){
@@ -182,14 +190,19 @@ void loop() {
         lastRunDate=clock.getDate();
         for(int i =0; i<2400; i++){
           displayCurrentTimePlusSprinkler();
-          delay(250); //delay plus increment should last 10 minutes
-          
+          emBegin();
+          emPumpArea(1, T_AREA_1);
+          emPumpArea(2, T_AREA_2);
+          emPumpArea(3, T_AREA_3);
+          emPumpArea(3, T_AREA_3);
+          emEnd();
+          delay(250); //delay plus increment should last 10 minutes        
         }
-        
       }
     }
   }
-  //emPumpArea(1, 3);
+  
+
 
  }
  
