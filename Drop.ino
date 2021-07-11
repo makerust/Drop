@@ -18,8 +18,8 @@ bool pmFlag;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 //Time Set
-#define BEGIN_HOUR 16
-#define BEGIN_MINUTE 52
+#define BEGIN_HOUR 23
+#define BEGIN_MINUTE 46
 int lastRunDate = 0;
 
 //Electromechanical defines
@@ -40,10 +40,10 @@ int lastRunDate = 0;
 //Use Seconds
 //Pump suggests 3.667 L/m
 //5L ~= 82s
-#define T_AREA_1 82
-#define T_AREA_2 82
-#define T_AREA_3 82
-#define T_AREA_4 82
+#define T_AREA_1 82  //Living wall
+#define T_AREA_2 82  //Rail
+#define T_AREA_3 82  //Herbs
+#define T_AREA_4 82  //Between Door
 
 //Motor
 #define MOTOR_ON HIGH
@@ -52,8 +52,29 @@ int lastRunDate = 0;
 
 //debug defs
 #define DEBUG
-#define VALVE_DEBUG
+//#define VALVE_DEBUG
 #define DATE_DEBUG
+
+//Flow
+
+//#define FLOW
+#ifdef FLOW
+float waterFlow = 0.0;
+long flowTimeout = (600000);
+#define FLOWPIN 2
+#endif
+#define F_AREA_1 10  //Living wall
+#define F_AREA_2 10  //Rail
+#define F_AREA_3 3  //Herbs
+#define F_AREA_4 3  //Between Door
+
+//--------------------------FUNCTIONS--------
+
+#ifdef FLOW
+void pulse() {
+  waterFlow += 1.0 / 5880.0;
+}
+#endif FLOW
 
 void emSafe() {
   digitalWrite(MOTOR, MOTOR_OFF);
@@ -95,19 +116,40 @@ void emPOST() {
   digitalWrite(ARM_EM, ARM_ON);
 }
 
+//----------------The Meat--------------------------------------
 
-void emPumpArea(int area, int seconds) {
+float emPumpArea(int area, int seconds, int flow) {
   unsigned long starttime = millis();
   unsigned long currenttime = millis();
-  const long interval = (1000 * long(seconds));
+  long interval = (1000 * long(seconds));
+
+  #ifdef FLOW
+  waterFlow=0;
+  attachInterrupt(0, pulse, RISING); //Interrupt 0 is pin 1, execute pulse, rising edge
+  interval=flowTimeout;
+  #endif
+
+  #ifdef DEBUG
+    Serial.print("interval: ");
+    Serial.println(interval);
+  #endif
 
   while (currenttime - starttime <= interval) {
     digitalWrite(area, VALVE_ON);
     digitalWrite(MOTOR, MOTOR_ON);
     currenttime = millis();
+    
+    #ifdef FLOW
+      displayCurrentTimePlusFlow();
+      if(waterFlow >= float(flow)){
+        break;
+      }
+    #endif
 
-    //If you decide to allow this to update time it goes here
+    
+    #ifndef FLOW
     displayCurrentTimePlusSprinkler();
+    #endif
 
 #ifdef DEBUG
 #ifdef VALVE_DEBUG
@@ -121,6 +163,10 @@ void emPumpArea(int area, int seconds) {
   }
   digitalWrite(area, VALVE_OFF);
   digitalWrite(MOTOR, MOTOR_OFF);
+
+  #ifdef FLOW
+  return waterFlow;
+  #endif
 }
 
 
@@ -131,7 +177,6 @@ void displayCurrentTime() {
   int hour = clock.getHour(h12Flag, pmFlag);
   int minute = clock.getMinute();
   int second = clock.getSecond();
-  int lastRunDate = (clock.getDate() - 1);
 
   display.setCursor(0, 0);
   if (hour <= 9) {
@@ -157,7 +202,6 @@ void displayCurrentTimePlusSprinkler() {
   int hour = clock.getHour(h12Flag, pmFlag);
   int minute = clock.getMinute();
   int second = clock.getSecond();
-  lastRunDate = (clock.getDate() - 1);
 
   display.setCursor(0, 0);
   if (hour <= 9) {
@@ -180,7 +224,38 @@ void displayCurrentTimePlusSprinkler() {
   display.display();
 }
 
+#ifdef FLOW
+void displayCurrentTimePlusFlow(){
+  display.clearDisplay();
 
+  int hour = clock.getHour(h12Flag, pmFlag);
+  int minute = clock.getMinute();
+  int second = clock.getSecond();
+
+  display.setCursor(0, 0);
+  if (hour <= 9) {
+    display.print("0");
+  }
+  display.print(hour, DEC);
+  display.print(":");
+  if (minute <= 9) {
+    display.print("0");
+  }
+  display.print(minute, DEC);
+  display.print(":");
+  if (second <= 9) {
+    display.print("0");
+  }
+  display.print(second, DEC);
+
+  display.setCursor(0, 40);
+  display.print("Used ");
+  display.print(waterFlow);
+  display.print("L");
+  display.display();
+  
+}
+#endif
 
 
 void setup() {
@@ -217,14 +292,25 @@ void loop() {
       if (clock.getMinute() == BEGIN_MINUTE) {
         if (lastRunDate != clock.getDate()) {
           //Sprinkler code would go here
+
+          #ifdef DEBUG
+            Serial.print("Prev: ");
+            Serial.println(lastRunDate);
+          #endif
+          
           lastRunDate = clock.getDate();
+
+          #ifdef DEBUG
+            Serial.print("Cur: ");
+            Serial.println(lastRunDate);
+          #endif
 
           displayCurrentTimePlusSprinkler();
           emReady();
-          emPumpArea(VALVE_1, T_AREA_1);
-          emPumpArea(VALVE_2, T_AREA_2);
-          emPumpArea(VALVE_3, T_AREA_3);
-          emPumpArea(VALVE_4, T_AREA_3);
+          emPumpArea(VALVE_1, T_AREA_1, F_AREA_1);
+          emPumpArea(VALVE_2, T_AREA_2, F_AREA_2);
+          emPumpArea(VALVE_3, T_AREA_3, F_AREA_3);
+          emPumpArea(VALVE_4, T_AREA_4, F_AREA_4);
           emSafe();
 
 
