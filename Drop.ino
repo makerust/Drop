@@ -18,8 +18,8 @@ bool pmFlag;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 //Time Set
-#define BEGIN_HOUR 23
-#define BEGIN_MINUTE 46
+#define BEGIN_HOUR 9
+#define BEGIN_MINUTE 17
 int lastRunDate = 0;
 
 //Electromechanical defines
@@ -30,11 +30,11 @@ int lastRunDate = 0;
 //Valve defines
 #define VALVE_ON HIGH
 #define VALVE_OFF LOW
-#define VALVE_MAIN 23
-#define VALVE_1 25
-#define VALVE_2 27
-#define VALVE_3 29
-#define VALVE_4 31
+#define VALVE_1 23
+#define VALVE_2 25
+#define VALVE_3 27
+#define VALVE_4 29
+#define VALVE_5 31 
 
 //Time Defines
 //Use Seconds
@@ -57,7 +57,7 @@ int lastRunDate = 0;
 
 //Flow
 
-//#define FLOW
+#define FLOW
 #ifdef FLOW
 float waterFlow = 0.0;
 long flowTimeout = (600000);
@@ -68,13 +68,22 @@ long flowTimeout = (600000);
 #define F_AREA_3 3  //Herbs
 #define F_AREA_4 3  //Between Door
 
+typedef struct{
+  int valvePin; //GPIO pin
+  int valveTime; //backup watering time in seconds
+  float valveVolume; //watering volume in liters
+} valveArea;
+
+valveArea balconySystem[5];
+
+
 //--------------------------FUNCTIONS--------
 
 #ifdef FLOW
 void pulse() {
   waterFlow += 1.0 / 5880.0;
 }
-#endif FLOW
+#endif
 
 void emSafe() {
   digitalWrite(MOTOR, MOTOR_OFF);
@@ -82,18 +91,18 @@ void emSafe() {
   digitalWrite(VALVE_2, VALVE_OFF);
   digitalWrite(VALVE_3, VALVE_OFF);
   digitalWrite(VALVE_4, VALVE_OFF);
-  digitalWrite(VALVE_MAIN, VALVE_OFF);
+  digitalWrite(VALVE_5, VALVE_OFF);
   digitalWrite(ARM_EM, ARM_OFF);
 }
 
 void emBegin() { //This is meant to be called first
   pinMode(MOTOR, OUTPUT);
   pinMode(ARM_EM, OUTPUT);
-  pinMode(VALVE_MAIN, OUTPUT);
   pinMode(VALVE_1, OUTPUT);
   pinMode(VALVE_2, OUTPUT);
   pinMode(VALVE_3, OUTPUT);
   pinMode(VALVE_4, OUTPUT);
+  pinMode(VALVE_5, OUTPUT);  
   emSafe();
 
 }
@@ -101,7 +110,6 @@ void emBegin() { //This is meant to be called first
 void emReady() {
   digitalWrite(MOTOR, MOTOR_OFF);
   digitalWrite(ARM_EM, ARM_ON);
-  digitalWrite(VALVE_MAIN, VALVE_ON);
 }
 
 
@@ -112,15 +120,16 @@ void emPOST() {
   digitalWrite(VALVE_2, VALVE_ON);
   digitalWrite(VALVE_3, VALVE_ON);
   digitalWrite(VALVE_4, VALVE_ON);
-  digitalWrite(VALVE_MAIN, VALVE_ON);
+  digitalWrite(VALVE_5, VALVE_ON);
   digitalWrite(ARM_EM, ARM_ON);
 }
 
 //----------------The Meat--------------------------------------
 
-float emPumpArea(int area, int seconds, int flow) {
+float emPumpArea(valveArea* sys) {
   unsigned long starttime = millis();
   unsigned long currenttime = millis();
+  long seconds = sys->valveTime;
   long interval = (1000 * long(seconds));
 
   #ifdef FLOW
@@ -135,13 +144,13 @@ float emPumpArea(int area, int seconds, int flow) {
   #endif
 
   while (currenttime - starttime <= interval) {
-    digitalWrite(area, VALVE_ON);
+    digitalWrite(sys->valvePin, VALVE_ON);
     digitalWrite(MOTOR, MOTOR_ON);
     currenttime = millis();
     
     #ifdef FLOW
       displayCurrentTimePlusFlow();
-      if(waterFlow >= float(flow)){
+      if(waterFlow >= float(sys->valveVolume)){
         break;
       }
     #endif
@@ -149,6 +158,7 @@ float emPumpArea(int area, int seconds, int flow) {
     
     #ifndef FLOW
     displayCurrentTimePlusSprinkler();
+
     #endif
 
 #ifdef DEBUG
@@ -161,11 +171,12 @@ float emPumpArea(int area, int seconds, int flow) {
 #endif
 #endif
   }
-  digitalWrite(area, VALVE_OFF);
+  digitalWrite(sys->valvePin, VALVE_OFF);
   digitalWrite(MOTOR, MOTOR_OFF);
 
   #ifdef FLOW
   return waterFlow;
+  detachInterrupt(0); //Interrupt 0 is pin 1
   #endif
 }
 
@@ -260,6 +271,26 @@ void displayCurrentTimePlusFlow(){
 
 void setup() {
   emBegin();
+  //Living Wall
+  balconySystem[0].valvePin = 23;
+  balconySystem[0].valveTime = 82;
+  balconySystem[0].valveVolume = 5;//5
+  //Rail
+  balconySystem[1].valvePin = 25;
+  balconySystem[1].valveTime = 82;
+  balconySystem[1].valveVolume = 5;//5
+  //Herbs
+  balconySystem[2].valvePin = 27;
+  balconySystem[2].valveTime = 82;
+  balconySystem[2].valveVolume = 3;
+  //
+  balconySystem[3].valvePin = 29;
+  balconySystem[3].valveTime = 82;
+  balconySystem[3].valveVolume = 3;
+  //
+  balconySystem[4].valvePin = 31;
+  balconySystem[4].valveTime = 0;
+  balconySystem[4].valveVolume = 0;
 
   // put your setup code here, to run once:
   Serial.begin(9600);
@@ -307,10 +338,10 @@ void loop() {
 
           displayCurrentTimePlusSprinkler();
           emReady();
-          emPumpArea(VALVE_1, T_AREA_1, F_AREA_1);
-          emPumpArea(VALVE_2, T_AREA_2, F_AREA_2);
-          emPumpArea(VALVE_3, T_AREA_3, F_AREA_3);
-          emPumpArea(VALVE_4, T_AREA_4, F_AREA_4);
+          emPumpArea(&balconySystem[0]);
+          emPumpArea(&balconySystem[1]);
+          emPumpArea(&balconySystem[2]);
+          emPumpArea(&balconySystem[3]);
           emSafe();
 
 
