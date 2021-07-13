@@ -18,8 +18,8 @@ bool pmFlag;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 //Time Set
-#define BEGIN_HOUR 9
-#define BEGIN_MINUTE 17
+#define BEGIN_HOUR 8
+#define BEGIN_MINUTE 30
 int lastRunDate = 0;
 
 //Electromechanical defines
@@ -30,20 +30,6 @@ int lastRunDate = 0;
 //Valve defines
 #define VALVE_ON HIGH
 #define VALVE_OFF LOW
-#define VALVE_1 23
-#define VALVE_2 25
-#define VALVE_3 27
-#define VALVE_4 29
-#define VALVE_5 31 
-
-//Time Defines
-//Use Seconds
-//Pump suggests 3.667 L/m
-//5L ~= 82s
-#define T_AREA_1 82  //Living wall
-#define T_AREA_2 82  //Rail
-#define T_AREA_3 82  //Herbs
-#define T_AREA_4 82  //Between Door
 
 //Motor
 #define MOTOR_ON HIGH
@@ -56,22 +42,20 @@ int lastRunDate = 0;
 #define DATE_DEBUG
 
 //Flow
-
 #define FLOW
 #ifdef FLOW
 float waterFlow = 0.0;
 long flowTimeout = (600000);
 #define FLOWPIN 2
 #endif
-#define F_AREA_1 10  //Living wall
-#define F_AREA_2 10  //Rail
-#define F_AREA_3 3  //Herbs
-#define F_AREA_4 3  //Between Door
+
 
 typedef struct{
   int valvePin; //GPIO pin
   int valveTime; //backup watering time in seconds
+  int valveTimeout; //Timeout for watering
   float valveVolume; //watering volume in liters
+  float valveVolumeCorrection; //Correction for tube volume
 } valveArea;
 
 valveArea balconySystem[5];
@@ -81,28 +65,29 @@ valveArea balconySystem[5];
 
 #ifdef FLOW
 void pulse() {
-  waterFlow += 1.0 / 5880.0;
+  waterFlow += 1.0 / 2037.5;
+  //0.35 Reported liters produced 1.0 Actual liters
+  //prev value 5880.0
+  //Trial 1 value 2058.1
+  //Trail 2 value is 1852.3
+  //Trial 3 value 2037.5
 }
 #endif
 
 void emSafe() {
   digitalWrite(MOTOR, MOTOR_OFF);
-  digitalWrite(VALVE_1, VALVE_OFF);
-  digitalWrite(VALVE_2, VALVE_OFF);
-  digitalWrite(VALVE_3, VALVE_OFF);
-  digitalWrite(VALVE_4, VALVE_OFF);
-  digitalWrite(VALVE_5, VALVE_OFF);
+  for(int i=0; i<4; i++){
+    digitalWrite(balconySystem[i].valvePin, VALVE_OFF);
+  }
   digitalWrite(ARM_EM, ARM_OFF);
 }
 
 void emBegin() { //This is meant to be called first
   pinMode(MOTOR, OUTPUT);
   pinMode(ARM_EM, OUTPUT);
-  pinMode(VALVE_1, OUTPUT);
-  pinMode(VALVE_2, OUTPUT);
-  pinMode(VALVE_3, OUTPUT);
-  pinMode(VALVE_4, OUTPUT);
-  pinMode(VALVE_5, OUTPUT);  
+    for(int i=0; i<4; i++){
+    pinMode(balconySystem[i].valvePin, OUTPUT);
+  }
   emSafe();
 
 }
@@ -112,16 +97,12 @@ void emReady() {
   digitalWrite(ARM_EM, ARM_ON);
 }
 
-
-
 void emPOST() {
   digitalWrite(MOTOR, MOTOR_ON);
-  digitalWrite(VALVE_1, VALVE_ON);
-  digitalWrite(VALVE_2, VALVE_ON);
-  digitalWrite(VALVE_3, VALVE_ON);
-  digitalWrite(VALVE_4, VALVE_ON);
-  digitalWrite(VALVE_5, VALVE_ON);
   digitalWrite(ARM_EM, ARM_ON);
+  for(int i=0; i<4; i++){
+    digitalWrite(balconySystem[i].valvePin, VALVE_ON);
+  }  
 }
 
 //----------------The Meat--------------------------------------
@@ -135,7 +116,7 @@ float emPumpArea(valveArea* sys) {
   #ifdef FLOW
   waterFlow=0;
   attachInterrupt(0, pulse, RISING); //Interrupt 0 is pin 1, execute pulse, rising edge
-  interval=flowTimeout;
+  interval=sys->valveTimeout;
   #endif
 
   #ifdef DEBUG
@@ -150,33 +131,32 @@ float emPumpArea(valveArea* sys) {
     
     #ifdef FLOW
       displayCurrentTimePlusFlow();
-      if(waterFlow >= float(sys->valveVolume)){
+      if(waterFlow >= float(sys->valveVolume+sys->valveVolumeCorrection)){
         break;
       }
     #endif
 
-    
     #ifndef FLOW
-    displayCurrentTimePlusSprinkler();
-
+      displayCurrentTimePlusSprinkler();
     #endif
 
-#ifdef DEBUG
-#ifdef VALVE_DEBUG
-    Serial.print("CT: ");
-    Serial.println(currenttime);
-    Serial.print("Dif: ");
-    Serial.println(currenttime - starttime);
-    Serial.println(interval);
-#endif
-#endif
+    #ifdef DEBUG
+    #ifdef VALVE_DEBUG
+      Serial.print("CT: ");
+      Serial.println(currenttime);
+      Serial.print("Dif: ");
+      Serial.println(currenttime - starttime);
+      Serial.println(interval);
+    #endif
+    #endif
   }
+  
   digitalWrite(sys->valvePin, VALVE_OFF);
   digitalWrite(MOTOR, MOTOR_OFF);
 
   #ifdef FLOW
-  return waterFlow;
-  detachInterrupt(0); //Interrupt 0 is pin 1
+    return waterFlow;
+    detachInterrupt(0); //Interrupt 0 is pin 1
   #endif
 }
 
@@ -271,26 +251,40 @@ void displayCurrentTimePlusFlow(){
 
 void setup() {
   emBegin();
+
+  //Define the main balconysystem struct
+  //23,25,27,29,31
   //Living Wall
-  balconySystem[0].valvePin = 23;
+  balconySystem[0].valvePin = 31;//31
   balconySystem[0].valveTime = 82;
-  balconySystem[0].valveVolume = 5;//5
+  balconySystem[0].valveTimeout = 1200;//20 minutes in S
+  balconySystem[0].valveVolume = 10;
+  balconySystem[0].valveVolumeCorrection =1;// correction for the tube volume
   //Rail
-  balconySystem[1].valvePin = 25;
+  balconySystem[1].valvePin = 29;
   balconySystem[1].valveTime = 82;
-  balconySystem[1].valveVolume = 5;//5
+  balconySystem[1].valveTimeout = 1200;
+  balconySystem[1].valveVolume = 10;
+  balconySystem[1].valveVolumeCorrection = 0.75;
   //Herbs
   balconySystem[2].valvePin = 27;
   balconySystem[2].valveTime = 82;
+  balconySystem[2].valveTimeout = 1200;
   balconySystem[2].valveVolume = 3;
-  //
-  balconySystem[3].valvePin = 29;
+  balconySystem[2].valveVolumeCorrection = 0.25;
+  //Between Walls
+  balconySystem[3].valvePin = 25;
   balconySystem[3].valveTime = 82;
+  balconySystem[3].valveTimeout = 1200;
   balconySystem[3].valveVolume = 3;
-  //
-  balconySystem[4].valvePin = 31;
+  balconySystem[3].valveVolumeCorrection = 0;
+  //Unused
+  balconySystem[4].valvePin = 23;
   balconySystem[4].valveTime = 0;
+  balconySystem[4].valveTimeout =0;
   balconySystem[4].valveVolume = 0;
+  balconySystem[4].valveVolumeCorrection = 0;
+  
 
   // put your setup code here, to run once:
   Serial.begin(9600);
@@ -306,7 +300,7 @@ void setup() {
   display.setTextSize(2);
   display.setTextColor(WHITE);
   display.setCursor(0, 10);
-  display.println("RTC Clock!");
+  display.println("Drop v1.0");
   display.display();
   delay(1000);
 
@@ -338,10 +332,13 @@ void loop() {
 
           displayCurrentTimePlusSprinkler();
           emReady();
-          emPumpArea(&balconySystem[0]);
+          if(1==clock.getDate()%2){//the following are watered every other day
+            emPumpArea(&balconySystem[0]);
+            emPumpArea(&balconySystem[3]);
+          }
           emPumpArea(&balconySystem[1]);
           emPumpArea(&balconySystem[2]);
-          emPumpArea(&balconySystem[3]);
+          
           emSafe();
 
 
