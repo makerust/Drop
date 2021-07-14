@@ -338,11 +338,13 @@ void setup() {
 
   //Define the main balconysystem struct
   //Areas listed
+  //This section defines the watering amount et al.
+  //
   //Living Wall
   balconySystem[0].valvePin = 31;//31
   balconySystem[0].valveTime = 82;//default if flow sensing doesn't work
   balconySystem[0].valveTimeout = 1200;//20 minutes in S
-  balconySystem[0].valveVolume = 10;//Watering amount
+  balconySystem[0].valveVolume = 10;//Watering amount in liters
   balconySystem[0].valveVolumeCorrection =1;// correction for the tube volume
   //Rail
   balconySystem[1].valvePin = 29;
