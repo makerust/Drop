@@ -17,10 +17,21 @@ bool pmFlag;
 #define SCREEN_ADDRESS 0x3c ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-//Time Set
-#define BEGIN_HOUR 8
-#define BEGIN_MINUTE 30
+
 int lastRunDate = 0;
+
+typedef struct 
+{
+  /* data */
+  int beginHour;
+  int beginMinute;
+} hourMinute;
+
+
+//watering Time Set
+hourMinute waterAlarm = {6, 00};// watering time, format (h)h,mm
+hourMinute lastFinishTime = {0,0};
+
 
 //Electromechanical defines
 #define ARM_ON HIGH
@@ -110,13 +121,19 @@ void emPOST() {
 float emPumpArea(valveArea* sys) {
   unsigned long starttime = millis();
   unsigned long currenttime = millis();
-  long seconds = sys->valveTime;
-  long interval = (1000 * long(seconds));
+  long seconds;
+  long interval;
+
+  #ifndef FLOW
+  seconds = sys->valveTime;
+  interval = (1000 * long(seconds));
+  #endif
 
   #ifdef FLOW
   waterFlow=0;
   attachInterrupt(0, pulse, RISING); //Interrupt 0 is pin 1, execute pulse, rising edge
-  interval=sys->valveTimeout;
+  seconds = sys->valveTimeout;
+  interval = (1000 * long(seconds));
   #endif
 
   #ifdef DEBUG
@@ -215,6 +232,68 @@ void displayCurrentTimePlusSprinkler() {
   display.display();
 }
 
+void displayCurrentTimePlusAlarm(hourMinute* today) {
+  display.clearDisplay();
+
+  int hour = clock.getHour(h12Flag, pmFlag);
+  int minute = clock.getMinute();
+  int second = clock.getSecond();
+
+  display.setCursor(0, 0);
+  if (hour <= 9) {
+    display.print("0");
+  }
+  display.print(hour, DEC);
+  display.print(":");
+  if (minute <= 9) {
+    display.print("0");
+  }
+  display.print(minute, DEC);
+  display.print(":");
+  if (second <= 9) {
+    display.print("0");
+  }
+  display.print(second, DEC);
+
+  display.setCursor(0, 40);
+  display.print("W: ");
+  display.print(today->beginHour);
+  display.print(":");
+  display.print(today->beginMinute);
+  display.display();
+}
+
+void displayCurrentTimePlusLastRun(hourMinute* todayEnd) {
+  display.clearDisplay();
+
+  int hour = clock.getHour(h12Flag, pmFlag);
+  int minute = clock.getMinute();
+  int second = clock.getSecond();
+
+  display.setCursor(0, 0);
+  if (hour <= 9) {
+    display.print("0");
+  }
+  display.print(hour, DEC);
+  display.print(":");
+  if (minute <= 9) {
+    display.print("0");
+  }
+  display.print(minute, DEC);
+  display.print(":");
+  if (second <= 9) {
+    display.print("0");
+  }
+  display.print(second, DEC);
+
+  display.setCursor(0, 40);
+  display.print("end: ");
+  display.print(todayEnd->beginHour);
+  display.print(":");
+  display.print(todayEnd->beginMinute);
+  display.display();
+}
+
 #ifdef FLOW
 void displayCurrentTimePlusFlow(){
   display.clearDisplay();
@@ -250,15 +329,15 @@ void displayCurrentTimePlusFlow(){
 
 
 void setup() {
-  emBegin();
+  
 
   //Define the main balconysystem struct
-  //23,25,27,29,31
+  //Areas listed
   //Living Wall
   balconySystem[0].valvePin = 31;//31
-  balconySystem[0].valveTime = 82;
+  balconySystem[0].valveTime = 82;//default if flow sensing doesn't work
   balconySystem[0].valveTimeout = 1200;//20 minutes in S
-  balconySystem[0].valveVolume = 10;
+  balconySystem[0].valveVolume = 10;//Watering amount
   balconySystem[0].valveVolumeCorrection =1;// correction for the tube volume
   //Rail
   balconySystem[1].valvePin = 29;
@@ -271,7 +350,7 @@ void setup() {
   balconySystem[2].valveTime = 82;
   balconySystem[2].valveTimeout = 1200;
   balconySystem[2].valveVolume = 3;
-  balconySystem[2].valveVolumeCorrection = 0.25;
+  balconySystem[2].valveVolumeCorrection = 0;
   //Between Walls
   balconySystem[3].valvePin = 25;
   balconySystem[3].valveTime = 82;
@@ -284,6 +363,12 @@ void setup() {
   balconySystem[4].valveTimeout =0;
   balconySystem[4].valveVolume = 0;
   balconySystem[4].valveVolumeCorrection = 0;
+
+  emBegin();
+
+  int shortStoreDate = 0;
+  int shortStoreHour = 0;
+  int shortStoreMinute = 0;
   
 
   // put your setup code here, to run once:
@@ -311,10 +396,15 @@ void loop() {
   // put your main code here, to run repeatedly:
 
   if (millis() % 100 == 1) {
-    displayCurrentTime();
+    if (lastRunDate != clock.getDate()) {
+      displayCurrentTimePlusAlarm(&waterAlarm);
+    }
+    else{
+      displayCurrentTimePlusLastRun(&lastFinishTime);
+    }
 
-    if (clock.getHour(h12Flag, pmFlag) == BEGIN_HOUR) {
-      if (clock.getMinute() == BEGIN_MINUTE) {
+    if (clock.getHour(h12Flag, pmFlag) == waterAlarm.beginHour) {
+      if (clock.getMinute() == waterAlarm.beginMinute) {
         if (lastRunDate != clock.getDate()) {
           //Sprinkler code would go here
 
@@ -338,8 +428,10 @@ void loop() {
           }
           emPumpArea(&balconySystem[1]);
           emPumpArea(&balconySystem[2]);
-          
           emSafe();
+          
+          lastFinishTime.beginMinute=clock.getMinute();
+          lastFinishTime.beginHour=clock.getHour(h12Flag, pmFlag);
 
 
 
