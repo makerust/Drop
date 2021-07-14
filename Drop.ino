@@ -5,6 +5,18 @@
 #include <DS3231.h>
 #include <Wire.h>
 
+typedef struct 
+{
+  /* data */
+  int beginHour;
+  int beginMinute;
+} hourMinute;
+
+
+//watering Time Set
+hourMinute waterAlarm = {6, 00};// watering time, format (h)h,mm
+//end watering time set
+
 DS3231 clock;
 
 bool century = false;
@@ -20,16 +32,9 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 int lastRunDate = 0;
 
-typedef struct 
-{
-  /* data */
-  int beginHour;
-  int beginMinute;
-} hourMinute;
 
 
-//watering Time Set
-hourMinute waterAlarm = {6, 00};// watering time, format (h)h,mm
+//init a placeholder
 hourMinute lastFinishTime = {0,0};
 
 
