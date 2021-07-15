@@ -343,27 +343,27 @@ void setup() {
   //Living Wall
   balconySystem[0].valvePin = 31;//31
   balconySystem[0].valveTime = 82;//default if flow sensing doesn't work
-  balconySystem[0].valveTimeout = 1200;//20 minutes in S
+  balconySystem[0].valveTimeout = 2400;//40 minutes in S
   balconySystem[0].valveVolume = 10;//Watering amount in liters
   balconySystem[0].valveVolumeCorrection =1;// correction for the tube volume
   //Rail
   balconySystem[1].valvePin = 29;
   balconySystem[1].valveTime = 82;
-  balconySystem[1].valveTimeout = 1200;
+  balconySystem[1].valveTimeout = 2400;
   balconySystem[1].valveVolume = 10;
   balconySystem[1].valveVolumeCorrection = 0.75;
   //Herbs
   balconySystem[2].valvePin = 27;
   balconySystem[2].valveTime = 82;
   balconySystem[2].valveTimeout = 1200;
-  balconySystem[2].valveVolume = 3;
+  balconySystem[2].valveVolume = 2;
   balconySystem[2].valveVolumeCorrection = 0;
   //Between Walls
   balconySystem[3].valvePin = 25;
   balconySystem[3].valveTime = 82;
   balconySystem[3].valveTimeout = 1200;
-  balconySystem[3].valveVolume = 3;
-  balconySystem[3].valveVolumeCorrection = 0;
+  balconySystem[3].valveVolume = 2;
+  balconySystem[3].valveVolumeCorrection = 0.1;
   //Unused
   balconySystem[4].valvePin = 23;
   balconySystem[4].valveTime = 0;
