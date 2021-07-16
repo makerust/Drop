@@ -123,7 +123,7 @@ void emPOST() {
 
 //----------------The Meat--------------------------------------
 
-float emPumpArea(valveArea* sys) {
+float emPumpArea(valveArea* sys, float* reportFlow ) {
   unsigned long starttime = millis();
   unsigned long currenttime = millis();
   long seconds;
@@ -172,7 +172,8 @@ float emPumpArea(valveArea* sys) {
     #endif
     #endif
   }
-  
+  *reportFlow += waterFlow;
+
   digitalWrite(sys->valvePin, VALVE_OFF);
   digitalWrite(MOTOR, MOTOR_OFF);
 
@@ -268,7 +269,7 @@ void displayCurrentTimePlusAlarm(hourMinute* today) {
   display.display();
 }
 
-void displayCurrentTimePlusLastRun(hourMinute* todayEnd) {
+void displayCurrentTimePlusLastRun(hourMinute* todayEnd, float reportFlow) {
   display.clearDisplay();
 
   int hour = clock.getHour(h12Flag, pmFlag);
@@ -296,6 +297,8 @@ void displayCurrentTimePlusLastRun(hourMinute* todayEnd) {
   display.print(todayEnd->beginHour);
   display.print(":");
   display.print(todayEnd->beginMinute);
+  display.print(" L: ");
+  display.print(reportFlow);
   display.display();
 }
 
@@ -376,6 +379,8 @@ void setup() {
   int shortStoreDate = 0;
   int shortStoreHour = 0;
   int shortStoreMinute = 0;
+
+  float reportWaterFlow = 0.0;
   
 
   // put your setup code here, to run once:
@@ -421,6 +426,7 @@ void loop() {
           #endif
           
           lastRunDate = clock.getDate();
+          reportWaterFlow = 0.0; //reset reported flow
 
           #ifdef DEBUG
             Serial.print("Cur: ");
@@ -430,11 +436,11 @@ void loop() {
           displayCurrentTimePlusSprinkler();
           emReady();
           if(1==clock.getDate()%2){//the following are watered every other day
-            emPumpArea(&balconySystem[0]);
-            emPumpArea(&balconySystem[3]);
+            emPumpArea(&balconySystem[0], &reportWaterFlow);
+            emPumpArea(&balconySystem[3], &reportWaterFlow);
           }
-          emPumpArea(&balconySystem[1]);
-          emPumpArea(&balconySystem[2]);
+          emPumpArea(&balconySystem[1], &reportWaterFlow);
+          emPumpArea(&balconySystem[2], &reportWaterFlow);
           emSafe();
           
           lastFinishTime.beginMinute=clock.getMinute();
