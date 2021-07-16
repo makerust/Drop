@@ -31,7 +31,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 
 int lastRunDate = 0;
-
+float reportWaterFlow = 0.0;
 
 
 //init a placeholder
@@ -261,12 +261,12 @@ void displayCurrentTimePlusAlarm(hourMinute* today) {
   }
   display.print(second, DEC);
 
-  display.setCursor(0, 40);
+  display.setCursor(0, 20);
   display.print("W: ");
   display.print(today->beginHour);
   display.print(":");
   display.print(today->beginMinute);
-  display.display();
+  display.display(); 
 }
 
 void displayCurrentTimePlusLastRun(hourMinute* todayEnd, float reportFlow) {
@@ -292,11 +292,12 @@ void displayCurrentTimePlusLastRun(hourMinute* todayEnd, float reportFlow) {
   }
   display.print(second, DEC);
 
-  display.setCursor(0, 40);
+  display.setCursor(0, 20);
   display.print("end: ");
   display.print(todayEnd->beginHour);
   display.print(":");
   display.print(todayEnd->beginMinute);
+  display.setCursor(0, 40);
   display.print(" L: ");
   display.print(reportFlow);
   display.display();
@@ -380,7 +381,6 @@ void setup() {
   int shortStoreHour = 0;
   int shortStoreMinute = 0;
 
-  float reportWaterFlow = 0.0;
   
 
   // put your setup code here, to run once:
@@ -412,7 +412,7 @@ void loop() {
       displayCurrentTimePlusAlarm(&waterAlarm);
     }
     else{
-      displayCurrentTimePlusLastRun(&lastFinishTime);
+      displayCurrentTimePlusLastRun(&lastFinishTime, reportWaterFlow);
     }
 
     if (clock.getHour(h12Flag, pmFlag) == waterAlarm.beginHour) {
@@ -445,18 +445,8 @@ void loop() {
           
           lastFinishTime.beginMinute=clock.getMinute();
           lastFinishTime.beginHour=clock.getHour(h12Flag, pmFlag);
-
-
-
         }
       }
     }
-
-
-
   }
-
-
-
-
 }
